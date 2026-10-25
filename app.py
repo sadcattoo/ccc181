@@ -20,8 +20,8 @@ TICKETS = [
 
 
 SERVICES = [
-    {"service_id": 1, "name": "Regular service"},
-    {"service_id": 2, "name": "Priority service"}
+    {"service_id": 1, "name": "Regular service", "prefix": "R"},
+    {"service_id": 2, "name": "Priority service", "prefix": "P"}
 ]
 
 
@@ -33,10 +33,37 @@ def index():
     return render_template("index.html", name="Sadcattooo", tickets=TICKETS)
 
 
-@app.route("/queue/<int:ticket_id>")
+@app.get("/queue/<int:ticket_id>")
 def ticket(ticket_id):
-    # <int:ticket_id> only matches numbers, so /queue/abc returns 404.
-    return render_template("ticket.html", ticket_id=ticket_id)
+    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
+    if t is None:
+        abort(404)
+
+    ahead = [x for x in TICKETS
+             if x["service_id"] == t["service_id"]
+             and x["status"] == "waiting"
+             and x["number"] < t["number"]]
+
+    service = next(s for s in SERVICES if s["service_id"] == t["service_id"])
+
+    # Most recent ticket currently called for this service (for "Now serving")
+    called = [x for x in TICKETS
+              if x["service_id"] == t["service_id"] and x["status"] == "called"]
+    now_serving = called[-1] if called else None
+
+    return render_template("ticket.html", ticket=t, service=service,
+                           ahead=len(ahead), now_serving=now_serving)
+
+
+@app.post("/queue/<int:ticket_id>/leave")
+def leave(ticket_id):
+    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
+    if t is None:
+        abort(404)
+    if t["status"] in ("waiting", "called"):
+        t["status"] = "no-show"
+        flash("You left the queue.", "success")
+    return redirect(url_for("index"))
 
 
 @app.get("/join")

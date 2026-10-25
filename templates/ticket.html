@@ -1,9 +1,82 @@
 {% extends "base.html" %}
-
-{% block title %}Ticket #{{ ticket_id }} · ClinicQ{% endblock %}
+{% block title %}Ticket {{ service.prefix }}-{{ ticket.number }} · YourApp{% endblock %}
 
 {% block content %}
-  <h2>Ticket #{{ ticket_id }}</h2>
-  <p>This page was built from the URL <code>/queue/{{ ticket_id }}</code>.</p>
-  <p><a href="{{ url_for('index') }}">&larr; Back to the queue</a></p>
+{% set badge = {
+  'waiting': 'text-bg-warning',
+  'called': 'text-bg-primary',
+  'served': 'text-bg-success',
+  'no-show': 'text-bg-secondary'
+} %}
+
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+
+    <div class="card border-dark border-2 text-center mb-3">
+      <div class="card-body">
+        <div class="text-uppercase small fw-semibold">Your number</div>
+        <div class="display-1 fw-bold" style="font-size: clamp(3rem, 18vw, 6rem);">
+          {{ service.prefix }}-{{ ticket.number }}
+        </div>
+        <div class="fs-5 fw-semibold text-uppercase">{{ service.name }}</div>
+      </div>
+    </div>
+
+    <div id="live-status" aria-live="polite">
+      <div class="card mb-3">
+        <div class="card-body text-center">
+          <div class="mb-2">
+            <span class="text-uppercase small fw-semibold me-2">Status</span>
+            <span class="badge fs-6 {{ badge.get(ticket.status, 'text-bg-secondary') }}">
+              {{ ticket.status|replace('-', ' ')|capitalize }}
+            </span>
+          </div>
+
+          <p class="fs-4 fw-semibold mb-0">
+            {% if ticket.status == 'waiting' %}
+              {% if ahead == 0 %}You're next!
+              {% elif ahead == 1 %}1 person ahead of you
+              {% else %}{{ ahead }} people ahead of you{% endif %}
+            {% elif ticket.status == 'called' %}
+              It's your turn. Please go to the counter.
+            {% elif ticket.status == 'served' %}
+              You've been served. Thank you!
+            {% else %}
+              You left the queue.
+            {% endif %}
+          </p>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-body text-center fw-semibold">
+          {% if now_serving %}
+            NOW SERVING: {{ service.prefix }}-{{ now_serving.number }}
+          {% else %}
+            Nobody is being served yet.
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <p class="text-center text-muted small">
+      Weak signal? Your number is also on the printed ticket.
+    </p>
+
+    <div class="d-grid gap-2">
+      <a href="{{ url_for('ticket', ticket_id=ticket.number) }}"
+         class="btn btn-outline-dark">Refresh</a>
+
+      {% if ticket.status in ('waiting', 'called') %}
+        <form method="post" action="{{ url_for('leave', ticket_id=ticket.number) }}"
+              class="d-grid">
+          <button type="submit" class="btn btn-outline-danger btn-sm">
+            Leave the queue
+          </button>
+        </form>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
 {% endblock %}
