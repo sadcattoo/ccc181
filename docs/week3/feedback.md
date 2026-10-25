@@ -6,7 +6,7 @@ Screen 1 | Frames: join-phone, join-laptop
 
 **Problem:** Anyone can tap PWD / Priority, and there’s no way to undo it. A wrong tap prints a priority ticket in the wrong queue (error prevention).
 
-**Change (kept):** None. The clerk checks the ticket at the counter (MQA-02), so I’ll keep it this way.
+**Change (kept):** Instead of just doing one tap in the category button, i will put another button to proceed in the next part so they can change if they mistouch the priority button. Also, I will put the priority button below the regular button to lessen the human error. Even though the cashier can check the category.
 
 ---
 

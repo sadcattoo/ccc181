@@ -13,16 +13,15 @@ app.secret_key = "dev-only-change-me"
 TICKETS = [
     {"number": 1001, "service_id": 1, "status": "waiting"},
     {"number": 2001, "service_id": 2, "status": "in service"},
-    {"number": 3001, "service_id": 3, "status": "done"},
+    {"number": 3001, "service_id": 1, "status": "done"},
     {"number": 1001, "service_id": 1, "status": "waiting"},
     {"number": 2001, "service_id": 2, "status": "in service"},
 ]
 
 
 SERVICES = [
-    {"service_id": 1, "name": "Buy a medicine"},
-    {"service_id": 2, "name": "Buy with a prescription"},
-    {"service_id": 3, "name": "Priority service"}
+    {"service_id": 1, "name": "Regular service"},
+    {"service_id": 2, "name": "Priority service"}
 ]
 
 
@@ -39,13 +38,35 @@ def ticket(ticket_id):
     # <int:ticket_id> only matches numbers, so /queue/abc returns 404.
     return render_template("ticket.html", ticket_id=ticket_id)
 
-@app.route("/join")
+
+@app.get("/join")
 def join_form():
-    return render_template("join.html")
+    return render_template("join.html", services=SERVICES, form={})
+
+
+@app.post("/join")
+def join():
+    form = request.form
+    service_id = form.get("service_id", type=int)
+
+    errors = {}
+    if service_id not in [s["service_id"] for s in SERVICES]:
+        errors["service_id"] = "Choose a service."
+
+    if errors:
+        flash("Please fix the highlighted fields.", "danger")
+        return render_template("join.html", services=SERVICES, form=form, errors=errors), 400
+
+    number = TICKETS[-1]["number"] + 1 if TICKETS else 1
+    TICKETS.append({"number": number, "service_id": service_id, "status": "waiting"})
+    flash(f"You joined the queue. Your ticket is #{number}. Category: {next((s['name'] for s in SERVICES if s['service_id'] == service_id), 'Unknown')}", "success")
+    return redirect(url_for("ticket", ticket_id=number))
+
 
 @app.route("/staff")
 def staff_dashboard():
     return "Staff dashboard coming soon"
+
 
 @app.route("/hello")
 def hello():
