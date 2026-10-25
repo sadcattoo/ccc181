@@ -14,7 +14,7 @@
 
     <div class="card border-dark border-2 text-center mb-3">
       <div class="card-body">
-        <div class="text-uppercase small fw-semibold">Your number</div>
+        <h1 class="text-uppercase small fw-semibold">Your number</h1>
         <div class="display-1 fw-bold" style="font-size: clamp(3rem, 18vw, 6rem);">
           {{ service.prefix }}-{{ ticket.number }}
         </div>
@@ -27,13 +27,10 @@
         <div class="card-body text-center">
           <div class="mb-2">
             <span class="text-uppercase small fw-semibold me-2">Status</span>
-            <!-- ADDED: id="status-badge" -->
             <span id="status-badge" class="badge fs-6 {{ badge.get(ticket.status, 'text-bg-secondary') }}">
               {{ ticket.status|replace('-', ' ')|capitalize }}
             </span>
           </div>
-
-          <!-- ADDED: id="status-message" -->
           <p id="status-message" class="fs-4 fw-semibold mb-0">
             {% if ticket.status == 'waiting' %}
               {% if ahead == 0 %}You're next!
@@ -52,7 +49,6 @@
       </div>
 
       <div class="card mb-3">
-        <!-- ADDED: id="now-serving" -->
         <div id="now-serving" class="card-body text-center fw-semibold">
           {% if now_serving %}
             NOW SERVING: {{ service.prefix }}-{{ now_serving.number }}
@@ -72,7 +68,6 @@
          class="btn btn-outline-dark">Refresh</a>
 
       {% if ticket.status in ('waiting', 'called') %}
-        <!-- ADDED: this wrapper div with id="leave-wrap" -->
         <div id="leave-wrap">
           <form method="post" action="{{ url_for('leave', ticket_id=ticket.number) }}" class="d-grid">
             <button type="submit" class="btn btn-outline-danger btn-sm">

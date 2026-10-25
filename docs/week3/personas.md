@@ -35,7 +35,7 @@ Pet enters the crowded pharmacy, feeling chest fatigue after their commute, and 
 
 ## DocG, the pharmacy clerk
 
-> "[Wala na ko kabalo kinsa akong unahon kay daghan kaayo sila especially gabii...]" (observation)
+> "Wala na ko kabalo kinsa akong unahon kay daghan kaayo sila especially gabii..." (observation)
 
 | | |
 | --- | --- |

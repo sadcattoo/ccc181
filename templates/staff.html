@@ -12,15 +12,32 @@
 {% endmacro %}
 
 <style>
-  .dash { display: grid; gap: 1rem; grid-template-areas: "now" "queue" "call"; }
-  .dash > * { min-width: 0; }             
+  .dash { display: grid; gap: 1rem;
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-areas: "now" "queue" "call"; }
+  .dash > * { min-width: 0; }
+  .dash .row > .col { min-width: 0; }
   .dash-now   { grid-area: now; }
   .dash-queue { grid-area: queue; }
   .dash-call  { grid-area: call; position: sticky; bottom: 0; z-index: 10;
                 background: var(--bs-body-bg); padding: .5rem 0;
                 border-top: 1px solid var(--bs-border-color); }
+
+  /* Phones: smaller table, 44px tap targets */
+  @media (max-width: 575.98px) {
+    .dash-queue .card-body { padding: .75rem; }
+    .dash-queue .table { font-size: .85rem; }
+    .dash-queue .table > :not(caption) > * > * { padding: .4rem .3rem; }
+    .dash-queue .table th[scope="row"] { font-size: 1rem !important; }
+    .dash-queue .table .btn-sm { min-width: 44px; min-height: 44px;
+                                 padding-left: .5rem; padding-right: .5rem; }
+    .dash .btn, .dash .nav-link, .dash .form-select { min-height: 44px; }
+    .dash-call .btn-lg { padding-top: .5rem; padding-bottom: .5rem; }
+  }
+
   @media (min-width: 992px) {
-    .dash { grid-template-columns: 5fr 7fr; grid-template-rows: auto 1fr;
+    .dash { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+            grid-template-rows: auto 1fr;
             grid-template-areas: "call queue" "now queue"; align-items: start; }
     .dash-call { position: static; padding: 0; border-top: 0; }
   }
@@ -98,14 +115,14 @@
 
         <div class="row row-cols-3 g-2">
           <div class="col d-grid">
-            <button type="button" class="btn btn-outline-primary py-3" disabled>Serving</button>
+            <button type="button" class="btn btn-outline-primary py-3 px-1" disabled>Serving</button>
           </div>
           <div class="col">
-            {{ act(now_serving, 'serve', 'Completed', 'btn-success py-3 fw-bold',
+            {{ act(now_serving, 'serve', 'Completed', 'btn-success py-3 px-1 fw-bold',
                    'Mark ticket ' ~ ticket_label(now_serving) ~ ' as served') }}
           </div>
           <div class="col">
-            {{ act(now_serving, 'no-show', 'Skipped', 'btn-outline-danger py-3',
+            {{ act(now_serving, 'no-show', 'Skipped', 'btn-outline-danger py-3 px-1',
                    'Mark ticket ' ~ ticket_label(now_serving) ~ ' as no-show') }}
           </div>
         </div>
@@ -144,19 +161,28 @@
             <thead>
               <tr>
                 <th scope="col">Ticket</th>
-                <th scope="col">Type</th>
+                <th scope="col" class="d-none d-sm-table-cell">Type</th>
                 <th scope="col">Waited</th>
-                <th scope="col">Status</th>
+                <th scope="col" class="d-none d-sm-table-cell">Status</th>
                 <th scope="col" class="text-end">Actions</th>
               </tr>
             </thead>
             <tbody>
               {% for t in queue %}
                 <tr class="{% if t.status == 'called' %}table-primary{% endif %}">
-                  <th scope="row" class="fs-5">{{ ticket_label(t) }}</th>
-                  <td>{{ ticket_service(t).name }}</td>
+                  <th scope="row" class="fs-5">
+                    {{ ticket_label(t) }}
+                    <div class="d-sm-none">
+                      {% if t.status == 'called' %}
+                        <span class="badge text-bg-primary">Called · Ctr {{ t.counter }}</span>
+                      {% else %}
+                        <span class="badge text-bg-warning">Waiting</span>
+                      {% endif %}
+                    </div>
+                  </th>
+                  <td class="d-none d-sm-table-cell">{{ ticket_service(t).name }}</td>
                   <td>{{ t.waited }} min</td>
-                  <td>
+                  <td class="d-none d-sm-table-cell">
                     {% if t.status == 'called' %}
                       <span class="badge text-bg-primary">Called · Ctr {{ t.counter }}</span>
                     {% else %}
@@ -164,7 +190,7 @@
                     {% endif %}
                   </td>
                   <td>
-                    <div class="d-flex gap-1 justify-content-end">
+                    <div class="d-flex gap-2 justify-content-end">
                       {% if t.status == 'waiting' %}
                         {{ act(t, 'call', 'Call', 'btn-sm btn-primary') }}
                       {% else %}

@@ -1,5 +1,5 @@
 // Served at /static/js/main.js and linked from templates/base.html.
-console.log("ClinicQ starter app loaded");
+console.log("MerQueueRy starter app loaded");
 
 // 8a: stop double joining
 const joinForm = document.getElementById("join-form");
