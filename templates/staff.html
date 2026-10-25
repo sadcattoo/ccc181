@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · YourApp{% endblock %}
+
+{% block content %}
+{# One small POST form per action; carries the current filter along. #}
+{% macro act(t, action, text, cls, aria=None) %}
+<form method="post" action="{{ url_for('staff_action', ticket_id=t.number, action=action) }}" class="d-grid">
+  {% if selected %}<input type="hidden" name="service_id" value="{{ selected }}">{% endif %}
+  <button type="submit" class="btn {{ cls }}"
+          aria-label="{{ aria or (text ~ ' ticket ' ~ ticket_label(t)) }}">{{ text }}</button>
+</form>
+{% endmacro %}
+
+<style>
+  .dash { display: grid; gap: 1rem; grid-template-areas: "now" "queue" "call"; }
+  .dash > * { min-width: 0; }             
+  .dash-now   { grid-area: now; }
+  .dash-queue { grid-area: queue; }
+  .dash-call  { grid-area: call; position: sticky; bottom: 0; z-index: 10;
+                background: var(--bs-body-bg); padding: .5rem 0;
+                border-top: 1px solid var(--bs-border-color); }
+  @media (min-width: 992px) {
+    .dash { grid-template-columns: 5fr 7fr; grid-template-rows: auto 1fr;
+            grid-template-areas: "call queue" "now queue"; align-items: start; }
+    .dash-call { position: static; padding: 0; border-top: 0; }
+  }
+</style>
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <h1 class="h3 mb-0">Dashboard</h1>
+  <div class="d-flex align-items-center gap-3">
+    <form method="post" action="{{ url_for('set_counter') }}" class="d-flex align-items-center gap-2">
+      {% if selected %}<input type="hidden" name="service_id" value="{{ selected }}">{% endif %}
+      <label for="counter" class="visually-hidden">Counter</label>
+      <select id="counter" name="counter" class="form-select form-select-sm w-auto"
+              onchange="this.form.submit()">
+        {% for c in counters %}
+          <option value="{{ c }}" {% if c == counter %}selected{% endif %}>Counter {{ c }}</option>
+        {% endfor %}
+      </select>
+      <noscript><button class="btn btn-sm btn-outline-dark">Set</button></noscript>
+    </form>
+    <span class="fw-semibold">Clerk: {{ clerk }}</span>
+  </div>
+</div>
+
+<div class="dash">
+
+  {# ── Call next (priority first, bigger) ── #}
+  <section class="dash-call" aria-label="Call next ticket">
+    <div class="d-grid gap-2">
+      {% for s in services %}
+        <form method="post" action="{{ url_for('call_next', service_id=s.service_id) }}" class="d-grid">
+          {% if selected %}<input type="hidden" name="service_id" value="{{ selected }}">{% endif %}
+          <button type="submit"
+                  class="btn {% if s.rank == 0 %}btn-outline-dark border-3 btn-lg py-3 py-lg-4 fw-bold{% else %}btn-outline-dark py-2 fw-semibold{% endif %}"
+                  {% if not waiting[s.service_id] %}disabled{% endif %}>
+            Call next {{ s.name|lower }}
+            <span class="d-block small fw-normal">{{ waiting[s.service_id] }} waiting</span>
+          </button>
+        </form>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ── Now serving at this counter ── #}
+  <section class="card border-dark border-2 dash-now" aria-labelledby="now-title">
+    <div class="card-body">
+      <h2 id="now-title" class="h6 text-uppercase mb-2">Now serving · Counter {{ counter }}</h2>
+
+      {% if now_serving %}
+        {% set svc = ticket_service(now_serving) %}
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+          <div class="fw-bold" style="font-size: clamp(2.5rem, 12vw, 4.5rem); line-height: 1;">
+            {{ ticket_label(now_serving) }}
+          </div>
+          <span class="badge text-bg-dark fs-6 text-uppercase">{{ svc.name }}</span>
+        </div>
+
+        <div class="border border-dark-subtle rounded p-2 mb-3" style="border-style: dashed !important;">
+          <div class="small fw-semibold text-uppercase mb-1">
+            Customer details{% if svc.rank == 0 %} (verify priority){% endif %}
+          </div>
+          <div class="small mb-2">
+            Ticket {{ ticket_label(now_serving) }} · Category: {{ svc.name|upper }} ·
+            Issued {{ now_serving.issued_at.strftime('%H:%M') }} ·
+            Called {{ now_serving.called_at.strftime('%H:%M') }} · Counter {{ now_serving.counter }}
+          </div>
+          {% if svc.rank == 0 %}
+            {% if now_serving.verified %}
+              <span class="badge text-bg-success">Verified ✓</span>
+            {% else %}
+              {{ act(now_serving, 'verify', 'Mark verified ✓', 'btn-sm btn-outline-dark',
+                     'Mark ticket ' ~ ticket_label(now_serving) ~ ' as verified') }}
+            {% endif %}
+          {% endif %}
+        </div>
+
+        <div class="row row-cols-3 g-2">
+          <div class="col d-grid">
+            <button type="button" class="btn btn-outline-primary py-3" disabled>Serving</button>
+          </div>
+          <div class="col">
+            {{ act(now_serving, 'serve', 'Completed', 'btn-success py-3 fw-bold',
+                   'Mark ticket ' ~ ticket_label(now_serving) ~ ' as served') }}
+          </div>
+          <div class="col">
+            {{ act(now_serving, 'no-show', 'Skipped', 'btn-outline-danger py-3',
+                   'Mark ticket ' ~ ticket_label(now_serving) ~ ' as no-show') }}
+          </div>
+        </div>
+      {% else %}
+        <p class="text-muted text-center my-4">
+          No ticket is being served at Counter {{ counter }}.<br>Use “Call next”.
+        </p>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ── Queue ── #}
+  <section class="card dash-queue" aria-labelledby="queue-title">
+    <div class="card-body">
+      <h2 id="queue-title" class="h6 text-uppercase mb-3">Queue</h2>
+
+      <ul class="nav nav-pills nav-fill gap-2 mb-3">
+        <li class="nav-item">
+          <a class="nav-link border {% if not selected %}active{% endif %}"
+             href="{{ url_for('staff_dashboard') }}">All ({{ total }})</a>
+        </li>
+        {% for s in services %}
+          <li class="nav-item">
+            <a class="nav-link border {% if selected == s.service_id %}active{% endif %}"
+               href="{{ url_for('staff_dashboard', service_id=s.service_id) }}">
+              {{ s.name }} ({{ counts[s.service_id] }})
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+
+      {% if queue %}
+        <div class="table-responsive">
+          <table class="table align-middle text-nowrap mb-0">
+            <caption class="caption-top">Tickets waiting or being served, priority first</caption>
+            <thead>
+              <tr>
+                <th scope="col">Ticket</th>
+                <th scope="col">Type</th>
+                <th scope="col">Waited</th>
+                <th scope="col">Status</th>
+                <th scope="col" class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in queue %}
+                <tr class="{% if t.status == 'called' %}table-primary{% endif %}">
+                  <th scope="row" class="fs-5">{{ ticket_label(t) }}</th>
+                  <td>{{ ticket_service(t).name }}</td>
+                  <td>{{ t.waited }} min</td>
+                  <td>
+                    {% if t.status == 'called' %}
+                      <span class="badge text-bg-primary">Called · Ctr {{ t.counter }}</span>
+                    {% else %}
+                      <span class="badge text-bg-warning">Waiting</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="d-flex gap-1 justify-content-end">
+                      {% if t.status == 'waiting' %}
+                        {{ act(t, 'call', 'Call', 'btn-sm btn-primary') }}
+                      {% else %}
+                        {{ act(t, 'serve', 'Serve', 'btn-sm btn-success',
+                               'Mark ticket ' ~ ticket_label(t) ~ ' as served') }}
+                      {% endif %}
+                      {{ act(t, 'no-show', 'No-show', 'btn-sm btn-outline-danger',
+                             'Mark ticket ' ~ ticket_label(t) ~ ' as no-show') }}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-center text-muted border rounded py-5">
+          <p class="fs-5 mb-1">No one is waiting{% if selected %} for this service{% endif %}.</p>
+          <p class="small mb-0">New tickets appear here as soon as someone joins the queue.</p>
+        </div>
+      {% endif %}
+
+      <div class="small text-center border rounded p-2 mt-3" style="border-style: dashed !important;">
+        Totals:
+        {% for s in services %}{{ s.name }} waiting {{ waiting[s.service_id] }}{% if not loop.last %} · {% endif %}{% endfor %}
+        <br>
+        Served today {{ served_count }} · Avg wait {% if avg_wait is not none %}{{ avg_wait }} min{% else %}—{% endif %}
+      </div>
+    </div>
+  </section>
+
+</div>
+{% endblock %}
