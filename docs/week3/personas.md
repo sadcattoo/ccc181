@@ -4,7 +4,7 @@
 
 | | |
 | --- | --- |
-| **Photo or sketch** | ![Persona Photo](images/persona_img.jpg) |
+| **Photo or sketch** | ![Persona Photo](screenshots/persona_img.jpg) |
 | **Age, role and background** | 23, MSU-IIT graduate, commutes, a PWD and has a heart problem |
 | **Goals** | Access Priority Queuing Swiftly, Experience a Clear and Transparent Queue Process, Complete Medicine Purchase Efficiently |
 | **Frustrations** | Exhausting Wait Times Without Priority Options, Unclear Queue Status and Overcrowding, Having to Justify Priority Status |
@@ -39,7 +39,7 @@ Pet enters the crowded pharmacy, feeling chest fatigue after their commute, and 
 
 | | |
 | --- | --- |
-| **Photo or sketch** | ![Persona Photo 2](images/persona_img2.jpg) |
+| **Photo or sketch** | ![Persona Photo 2](screenshots/persona_img2.jpg) |
 | **Age, role and background** | 28, full-time pharmacy clerk/dispenser, stands for long shifts, manages high daily customer volume |
 | **Goals** | Serve priority and regular patients quickly, manage queue flow smoothly, avoid bottlenecks at dispensing counters |
 | **Frustrations** | Loud crowding at counter, manual verification slowing down priority calls, arguments over who arrived first |
