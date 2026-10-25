@@ -27,18 +27,21 @@
         <div class="card-body text-center">
           <div class="mb-2">
             <span class="text-uppercase small fw-semibold me-2">Status</span>
-            <span class="badge fs-6 {{ badge.get(ticket.status, 'text-bg-secondary') }}">
+            <!-- ADDED: id="status-badge" -->
+            <span id="status-badge" class="badge fs-6 {{ badge.get(ticket.status, 'text-bg-secondary') }}">
               {{ ticket.status|replace('-', ' ')|capitalize }}
             </span>
           </div>
 
-          <p class="fs-4 fw-semibold mb-0">
+          <!-- ADDED: id="status-message" -->
+          <p id="status-message" class="fs-4 fw-semibold mb-0">
             {% if ticket.status == 'waiting' %}
               {% if ahead == 0 %}You're next!
               {% elif ahead == 1 %}1 person ahead of you
               {% else %}{{ ahead }} people ahead of you{% endif %}
             {% elif ticket.status == 'called' %}
-              It's your turn. Please go to the counter.
+              {% if ticket.counter %}It's your turn. Please go to Counter {{ ticket.counter }}.
+              {% else %}It's your turn. Please go to the counter.{% endif %}
             {% elif ticket.status == 'served' %}
               You've been served. Thank you!
             {% else %}
@@ -49,7 +52,8 @@
       </div>
 
       <div class="card mb-3">
-        <div class="card-body text-center fw-semibold">
+        <!-- ADDED: id="now-serving" -->
+        <div id="now-serving" class="card-body text-center fw-semibold">
           {% if now_serving %}
             NOW SERVING: {{ service.prefix }}-{{ now_serving.number }}
           {% else %}
@@ -68,15 +72,82 @@
          class="btn btn-outline-dark">Refresh</a>
 
       {% if ticket.status in ('waiting', 'called') %}
-        <form method="post" action="{{ url_for('leave', ticket_id=ticket.number) }}"
-              class="d-grid">
-          <button type="submit" class="btn btn-outline-danger btn-sm">
-            Leave the queue
-          </button>
-        </form>
+        <!-- ADDED: this wrapper div with id="leave-wrap" -->
+        <div id="leave-wrap">
+          <form method="post" action="{{ url_for('leave', ticket_id=ticket.number) }}" class="d-grid">
+            <button type="submit" class="btn btn-outline-danger btn-sm">
+              Leave the queue
+            </button>
+          </form>
+        </div>
       {% endif %}
     </div>
 
   </div>
 </div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+  const statusUrl = "{{ url_for('ticket_status', ticket_id=ticket.number) }}";
+
+  const BADGES = {
+    "waiting": { cls: "text-bg-warning",   text: "Waiting" },
+    "called":  { cls: "text-bg-primary",   text: "Called" },
+    "served":  { cls: "text-bg-success",   text: "Served" },
+    "no-show": { cls: "text-bg-secondary", text: "No show" },
+  };
+  const BADGE_CLASSES = Object.values(BADGES).map(b => b.cls);
+
+  function messageFor(data) {
+    switch (data.status) {
+      case "waiting":
+        if (data.ahead === 0) return "You're next!";
+        if (data.ahead === 1) return "1 person ahead of you";
+        return `${data.ahead} people ahead of you`;
+      case "called":
+        return data.counter
+          ? `It's your turn. Please go to Counter ${data.counter}.`
+          : "It's your turn. Please go to the counter.";
+      case "served":
+        return "You've been served. Thank you!";
+      default:
+        return "You left the queue.";
+    }
+  }
+
+  let timer;
+  async function refreshStatus() {
+    try {
+      const res = await fetch(statusUrl);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      const badge = document.getElementById("status-badge");
+      const info = BADGES[data.status] || BADGES["no-show"];
+      badge.classList.remove(...BADGE_CLASSES);
+      badge.classList.add(info.cls);
+      badge.textContent = info.text;
+
+      document.getElementById("status-message").textContent = messageFor(data);
+
+      const now = document.getElementById("now-serving");
+      if (now) {
+        now.textContent = data.now_serving
+          ? `NOW SERVING: ${data.now_serving}`
+          : "Nobody is being served yet.";
+      }
+
+      if (data.status === "served" || data.status === "no-show") {
+        const leave = document.getElementById("leave-wrap");
+        if (leave) leave.hidden = true;
+        clearInterval(timer);
+      }
+    } catch (err) {
+      console.warn("Could not refresh status", err);
+    }
+  }
+  timer = setInterval(refreshStatus, 10000);
+</script>
 {% endblock %}

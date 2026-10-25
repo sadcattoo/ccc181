@@ -77,6 +77,30 @@ def leave(ticket_id):
     return redirect(url_for("index"))
 
 
+@app.get("/queue/<int:ticket_id>/status.json")
+def ticket_status(ticket_id):
+    t = find_ticket(ticket_id)
+    if t is None:
+        abort(404)
+
+    ahead = sum(1 for x in TICKETS
+                if x["service_id"] == t["service_id"]
+                and x["status"] == "waiting" and x["number"] < t["number"])
+
+    called = [x for x in TICKETS
+              if x["service_id"] == t["service_id"] and x["status"] == "called"]
+    now_serving = called[-1] if called else None
+
+    return {
+        "status": t["status"],
+        "ahead": ahead,
+        "counter": t.get("counter"),
+        "now_serving": ticket_label(now_serving) if now_serving else None,
+    }
+
+
+
+
 @app.get("/join")
 def join_form():
     return render_template("join.html", services=SERVICES, form={})
