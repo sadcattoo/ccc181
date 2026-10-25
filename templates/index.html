@@ -1,18 +1,15 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <p>Hello, {{ name }}!</p>
+  <p>Hello, Loyal Customer!</p>
 
-  <h2>Tickets in the queue</h2>
-  <ul class="tickets">
-    {% for t in tickets %}
-      <li><a href="{{ url_for('ticket', ticket_id=t.number) }}">#{{ t.number }}</a>
-      
-      {{t.status}}
-      
-      </li>
-    {% else %}  
-      <li>The queue is empty.</li>
-    {% endfor %}
-  </ul>
+  <div class="text-center py-5">
+  <h1 class="display-4 fw-bold">Mercury Drug Queueing System</h1>
+  &nbsp;
+  &nbsp;
+
+  <p class="lead">Press Start to get started!</p>
+  <a class="btn btn-primary btn-lg" href="{{ url_for('join_form') }}">Start</a>
+  </div>
+
 {% endblock %}

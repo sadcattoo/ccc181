@@ -4,9 +4,10 @@ Run it with:
     flask --app app run --debug
 then open http://127.0.0.1:5000
 """
-from flask import Flask, render_template
+from flask import Flask, abort, flash, redirect, render_template, request, url_for
 
 app = Flask(__name__)
+app.secret_key = "dev-only-change-me" 
 
 # Sample data for the demo. A real app would load this from a database later.
 TICKETS = [
@@ -38,7 +39,13 @@ def ticket(ticket_id):
     # <int:ticket_id> only matches numbers, so /queue/abc returns 404.
     return render_template("ticket.html", ticket_id=ticket_id)
 
+@app.route("/join")
+def join_form():
+    return render_template("join.html")
 
+@app.route("/staff")
+def staff_dashboard():
+    return "Staff dashboard coming soon"
 
 @app.route("/hello")
 def hello():
