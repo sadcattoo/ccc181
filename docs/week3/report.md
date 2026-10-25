@@ -9,7 +9,7 @@
 | **Student ID** | 2023-2491 |
 | **Section** | CS3B |
 | **Date** | October 25, 2026 |
-| **Pull request** |  |
+| **Pull request** | https://github.com/sadcattoo/ccc181/pull/2#issue-6029387730 |
 
 
 ## 2. Personas
