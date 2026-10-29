@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <p>Hello, Loyal Customer!</p>
+
+  <div class="text-center py-5">
+  <h1 class="display-4 fw-bold">Mercury Drug Queueing System</h1>
+  &nbsp;
+  &nbsp;
+
+  <p class="lead">Press Start to get started!</p>
+  <a class="btn btn-primary btn-lg" href="{{ url_for('join_form') }}">Start</a>
+  </div>
+
+{% endblock %}
