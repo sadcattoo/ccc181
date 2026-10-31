@@ -3,3 +3,6 @@ MerQueueRy is a web-based queue management system for a pharmacy, built with Fla
 The dashboard is currently open. In case staff comes in a week, it can be easily open just by typing the localhost address.
 
 ★ Staff Feature: Customer Category Filter. The staff can easily distinguish the priority and regular customers.
+
+**[Requirements](docs/requirements.md)**
+

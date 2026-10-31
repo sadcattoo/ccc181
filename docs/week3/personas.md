@@ -21,8 +21,8 @@ Pet enters the crowded pharmacy, feeling chest fatigue after their commute, and 
 | Task | Screen | Requirement ID |
 | --- | --- | --- |
 | Select PWD priority category to get a ticket | Kiosk Home / Ticket Print | MQ-01 |
-| Scan QR code on paper ticket to launch queue tracker | Ticket / Mobile Web Tracker | MQ-02 |
-| Receive audio chime and high-contrast screen call out | Overhead Display / Kiosk | MQ-03 |
+| Scan QR code on paper ticket to launch queue tracker | Ticket / Mobile Web Tracker | MQ-03 |
+| Receive audio chime and high-contrast screen call out | Overhead Display / Kiosk | MQ-05 |
 
 ### What this means for my interface
 
@@ -55,9 +55,9 @@ DocG arrives at the busy pharmacy counter, logs into the queue dashboard on the 
 
 | Task | Screen | Requirement ID |
 | --- | --- | --- |
-| Call the next priority/regular customer | Queue Dashboard | MQA-01 |
-| Verify PWD/Priority ticket details and status | Customer Details | MQA-02 |
-| Mark queue number as Serving, Completed, or Skipped | Call Control | MQA-03 |
+| Call the next priority/regular customer | Queue Dashboard | MQ-07 |
+| Verify PWD/Priority ticket details and status | Customer Details | MQ-09 |
+| Mark queue number as Serving, Completed, or Skipped | Call Control | MQ-08 |
 
 ### What this means for my interface
 
