@@ -17,7 +17,7 @@
 | MQ-05 ★ | A customer can receive audio chime and high-contrast screen call out | Could | **Yes** | Later |
 | MQ-06 | A customer can leave the queue before being called. | Must | **Yes** | Built (Week 3) |
 | MQ-07 | A clerk/staff member can call the next waiting ticket for a service. | Must | **Yes** | Built (Week 3) |
-| MQ-08 | A clerk/staff member can mark a called ticket as served, completed, or no-show. | Must | **Yes** | Built (Week 3) |
+| MQ-08 | A clerk/staff member can mark a called ticket as served, completed, or skipped. | Must | **Yes** | Built (Week 3) |
 | MQ-09 | A clerk/staff member can verify PWD/priority ticket details and status | Must | **Yes** | Built (Week 3) |
 | MQ-10 ★ | A clerk/staff can manually adjust or override a ticket's priority level upon physically verifying a customer's ID at the counter. | Should | **Yes** | Later |
 | MQ-11 ★ | A clerk/staff can export end-of-day queue performance metrics (average wait time, total served, priority ratio, total skipped) to CSV/PDF. | Should | **Yes** | This week |
@@ -31,7 +31,7 @@ A non-functional requirement says **how well** the app must work. Write at least
 | --- | --- | --- | --- |
 | NFR-01 | After the app, server, or database restarts, every waiting ticket keeps its number, status, and position. | Data integrity | Must |
 | NFR-02 | Two customers joining the same service at the same moment never get the same ticket number. | Data integrity | Must |
-| NFR-03 | A ticket that is served, completed, no-show, or left can never be called again. | Data integrity | Must |
+| NFR-03 | A ticket that is served, completed, skipped, or left can never be called again. | Data integrity | Must |
 | NFR-04 | Every screen scores 90 or higher in the Lighthouse accessibility check. | Accessibility | Must |
 | NFR-05 | No password or secret key is stored in the repository. | Security | Must |
 | NFR-06 | The mobile tracker and the clerk’s “call next” action each respond in under 2 seconds. | Performance | Should |

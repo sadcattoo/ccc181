@@ -122,8 +122,8 @@
                    'Mark ticket ' ~ ticket_label(now_serving) ~ ' as served') }}
           </div>
           <div class="col">
-            {{ act(now_serving, 'no-show', 'Skipped', 'btn-outline-danger py-3 px-1',
-                   'Mark ticket ' ~ ticket_label(now_serving) ~ ' as no-show') }}
+            {{ act(now_serving, 'skipped', 'Skipped', 'btn-outline-danger py-3 px-1',
+                   'Mark ticket ' ~ ticket_label(now_serving) ~ ' as skipped') }}
           </div>
         </div>
       {% else %}
@@ -197,8 +197,8 @@
                         {{ act(t, 'serve', 'Serve', 'btn-sm btn-success',
                                'Mark ticket ' ~ ticket_label(t) ~ ' as served') }}
                       {% endif %}
-                      {{ act(t, 'no-show', 'No-show', 'btn-sm btn-outline-danger',
-                             'Mark ticket ' ~ ticket_label(t) ~ ' as no-show') }}
+                      {{ act(t, 'skipped', 'Skipped', 'btn-sm btn-outline-danger',
+                             'Mark ticket ' ~ ticket_label(t) ~ ' as skipped') }}
                     </div>
                   </td>
                 </tr>

@@ -4,15 +4,28 @@ Run it with:
     flask --app app run --debug
 then open http://127.0.0.1:5000
 """
-from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
-
+import os
 from datetime import datetime, timedelta
 
+from dotenv import load_dotenv
+from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
+from flask_migrate import Migrate
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+
+from models import Service, Ticket, User, db
+
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = "dev-only-change-me" 
+app.secret_key = "dev-only-change-me"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["DATABASE_URL"]
+app.config["SQLALCHEMY_ECHO"] = os.environ.get("SQLALCHEMY_ECHO") == "1"
 
-# Sample data for the demo. A real app would load this from a database later.
+db.init_app(app)
+migrate = Migrate(app, db)
+
+
 def ago(minutes):
     return datetime.now() - timedelta(minutes=minutes)
 
@@ -39,8 +52,7 @@ CLERK = "DocG"
 
 @app.route("/")
 def index():
-    # render_template looks inside the templates/ folder and passes
-    # keyword arguments to the template as variables.
+    
     return render_template("index.html", name="Sadcattooo", tickets=TICKETS)
 
 
@@ -144,7 +156,7 @@ def current_counter():
 
 
 def back_to_dashboard():
-    # keeps the service filter after an action (None is dropped by url_for)
+    
     return redirect(url_for("staff_dashboard",
                             service_id=request.form.get("service_id", type=int)))
 
@@ -169,7 +181,7 @@ def staff_dashboard():
     services = sorted(SERVICES, key=lambda s: s["rank"])
     rank = {s["service_id"]: s["rank"] for s in SERVICES}
 
-    # priority lane first, then called before waiting, then by number
+    
     active = [t for t in TICKETS if t["status"] in ("waiting", "called")]
     active.sort(key=lambda t: (rank[t["service_id"]], t["status"] != "called", t["number"]))
 
@@ -241,10 +253,10 @@ def staff_action(ticket_id, action):
 
 @app.route("/hello")
 def hello():
-    # The plain-string version from the Routes slide.
+    
     return "Hello, CCC181!"
 
 
 if __name__ == "__main__":
-    # Lets you also start the app with: python app.py
+
     app.run(debug=True)
