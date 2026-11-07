@@ -26,6 +26,18 @@ db.init_app(app)
 migrate = Migrate(app, db)
 
 
+@app.cli.command("seed")
+def seed():
+    """Add the starting services if they are not there yet."""
+    starting = [("Regular", 10), ("Priority", 10)]
+    for name, minutes in starting:
+        exists = db.session.scalar(db.select(Service).filter_by(name=name))
+        if exists is None:
+            db.session.add(Service(name=name, avg_minutes=minutes))
+    db.session.commit()
+    print("Services are ready.")
+
+
 def ago(minutes):
     return datetime.now() - timedelta(minutes=minutes)
 
