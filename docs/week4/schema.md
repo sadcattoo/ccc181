@@ -10,7 +10,7 @@
 | MQ-05 | A customer can receive **audio chime** and **high-contrast screen call out**. *(Could, later)* | audio chime, high-contrast screen call out | *(triggered when tickets.status becomes `called`; no new column)* |
 | MQ-06 | A customer can **leave** the queue before being **called**. | leave, called | tickets.status (`left`), tickets.called_at |
 | MQ-07 | A **clerk/staff member** can **call** the next **waiting ticket** for a service. | clerk/staff member, waiting ticket, service | users.role, tickets.status (`waiting` → `called`), services |
-| MQ-08 | A clerk/staff member can mark a called **ticket** as **served**, **completed**, or **no-show**. | ticket, served, completed, no-show | tickets, tickets.status (`served`, `completed`, `no_show`) |
+| MQ-08 | A clerk/staff member can mark a called **ticket** as **served**, **completed**, or **skipped**. | ticket, served, completed, skipped | tickets, tickets.status (`served`, `completed`, `skipped`) |
 | MQ-09 | A clerk/staff member can **verify** **PWD/priority ticket** **details** and **status**. | PWD/priority ticket, details, status, verify | tickets, tickets.priority_level, tickets.status, tickets.verified_by, tickets.verified_at |
 | MQ-10 | A clerk/staff can manually **adjust or override** a ticket's **priority level** upon physically verifying a customer's **ID** at the counter. | priority level, ID, override | tickets.priority_level, tickets.verified_by, tickets.verified_at *(ID is checked in person, not stored)* |
 | MQ-11 | A clerk/staff can **export** end-of-day queue performance **metrics** (**average wait time**, **total served**, **priority ratio**, **total skipped**) to **CSV/PDF**. | metrics, average wait time, total served, priority ratio, total skipped | *(all computed)* from tickets.created_at, called_at, status, priority_level |
@@ -37,7 +37,7 @@
 | tickets | id | integer, generated | PRIMARY KEY | Used as the ticket number; generated, never reused |
 | tickets | user_id | integer | NOT NULL REFERENCES users(id) | No ticket for a missing customer |
 | tickets | service_id | integer | NOT NULL REFERENCES services(id) | No ticket for a missing service |
-| tickets | status | varchar(20) | NOT NULL DEFAULT 'waiting', CHECK (status IN ('waiting', 'called', 'served', 'completed', 'no_show', 'left')) | Only the states MQ-06 and MQ-08 describe |
+| tickets | status | varchar(20) | NOT NULL DEFAULT 'waiting', CHECK (status IN ('waiting', 'called', 'served', 'completed', 'skipped', 'left')) | Only the states MQ-06 and MQ-08 describe |
 | tickets | priority_level | varchar(20) | NOT NULL DEFAULT 'regular', CHECK (priority_level IN ('regular', 'pwd')) | Only the two customer types; `pwd` uses the priority lane; a clerk can override it (MQ-10) |
 | tickets | created_at | timestamptz | NOT NULL DEFAULT now() | Time zone safe; set by the database; used for ordering and wait time |
 | tickets | called_at | timestamptz | CHECK (called_at IS NULL OR called_at >= created_at) | Empty until called; cannot be before the ticket was created |
@@ -48,18 +48,21 @@
 ## ERD
 ![ERD](screenshots/erd.png)
 
-###Deleting rules:
--RESTRICT: deleting a user must not delete their tickets, because end-of-day metrics (MQ-11) are computed from past tickets.
+One user has many tickets. One service has many tickets. One user (a clerk) verifies many tickets. Each ticket belongs to exactly one user and exactly one service, and is verified by at most one user.
+
+### Deleting rules:
+- `RESTRICT`: deleting a user must not delete their tickets, because end-of-day metrics (MQ-11) are computed from past tickets.
 SET NULL is not possible here because user_id is NOT NULL.
 Ref: tickets.user_id > users.id [delete: restrict]
 
--RESTRICT: deleting a service must not delete its old tickets, because they are needed for reports (MQ-11).
+- `RESTRICT`: deleting a service must not delete its old tickets, because they are needed for reports (MQ-11).
 SET NULL is not possible here because service_id is NOT NULL.
 Ref: tickets.service_id > services.id [delete: restrict]
 
--RESTRICT: verified_by records which clerk checked the ID for a priority ticket (MQ-09, MQ-10). Deleting that clerk must not erase the record or the tickets, so the delete is blocked.
+- `RESTRICT`: verified_by records which clerk checked the ID for a priority ticket (MQ-09, MQ-10). Deleting that clerk must not erase the record or the tickets, so the delete is blocked.
 Ref: tickets.verified_by > users.id [delete: restrict]
 
+- No `Cascade` has been used.
 
 ## Check that it is normalized
 
