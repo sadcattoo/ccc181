@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Ticket {{ service.prefix }}-{{ ticket.number }} · YourApp{% endblock %}
+{% block title %}Ticket {{ service.prefix }}-{{ ticket.id }} · YourApp{% endblock %}
 
 {% block content %}
 {% set badge = {
@@ -16,7 +16,7 @@
       <div class="card-body">
         <h1 class="text-uppercase small fw-semibold">Your number</h1>
         <div class="display-1 fw-bold" style="font-size: clamp(3rem, 18vw, 6rem);">
-          {{ service.prefix }}-{{ ticket.number }}
+          {{ service.prefix }}-{{ ticket.id }}
         </div>
         <div class="fs-5 fw-semibold text-uppercase">{{ service.name }}</div>
       </div>
@@ -51,7 +51,7 @@
       <div class="card mb-3">
         <div id="now-serving" class="card-body text-center fw-semibold">
           {% if now_serving %}
-            NOW SERVING: {{ service.prefix }}-{{ now_serving.number }}
+            NOW SERVING: {{ service.prefix }}-{{ now_serving.id }}
           {% else %}
             Nobody is being served yet.
           {% endif %}
@@ -64,12 +64,12 @@
     </p>
 
     <div class="d-grid gap-2">
-      <a href="{{ url_for('ticket', ticket_id=ticket.number) }}"
+      <a href="{{ url_for('ticket', ticket_id=ticket.id) }}"
          class="btn btn-outline-dark">Refresh</a>
 
       {% if ticket.status in ('waiting', 'called') %}
         <div id="leave-wrap">
-          <form method="post" action="{{ url_for('leave', ticket_id=ticket.number) }}" class="d-grid">
+          <form method="post" action="{{ url_for('leave', ticket_id=ticket.id) }}" class="d-grid">
             <button type="submit" class="btn btn-outline-danger btn-sm">
               Leave the queue
             </button>
@@ -85,7 +85,7 @@
 
 {% block scripts %}
 <script>
-  const statusUrl = "{{ url_for('ticket_status', ticket_id=ticket.number) }}";
+  const statusUrl = "{{ url_for('ticket_status', ticket_id=ticket.id) }}";
 
   const BADGES = {
     "waiting": { cls: "text-bg-warning",   text: "Waiting" },

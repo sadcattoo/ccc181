@@ -5,7 +5,7 @@ Run it with:
 then open http://127.0.0.1:5000
 """
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from dotenv import load_dotenv
 from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
@@ -38,60 +38,40 @@ def seed():
     print("Services are ready.")
 
 
-def ago(minutes):
-    return datetime.now() - timedelta(minutes=minutes)
-
-
-TICKETS = [
-    {"number": 1001, "service_id": 1, "status": "served",  "issued_at": ago(40), "called_at": ago(32), "counter": 1},
-    {"number": 2001, "service_id": 2, "status": "called",  "issued_at": ago(14), "called_at": ago(2),  "counter": 2},
-    {"number": 3001, "service_id": 2, "status": "waiting", "issued_at": ago(12)},
-    {"number": 1004, "service_id": 1, "status": "waiting", "issued_at": ago(7)},
-    {"number": 1002, "service_id": 1, "status": "waiting", "issued_at": ago(3)},
-    {"number": 1006, "service_id": 2, "status": "waiting", "issued_at": ago(1)},
-]
-
-SERVICES = [
-    {"service_id": 1, "name": "Regular",  "prefix": "R", "rank": 1},
-    {"service_id": 2, "name": "Priority", "prefix": "P", "rank": 0},
-]
+# SERVICES and TICKETS (the Week 3 lists) are gone. Every route that still
+# mentions them below is replaced in Parts 8 and 9.
 
 COUNTERS = [1, 2, 3]
 CLERK = "DocG"
 
 
-
-
 @app.route("/")
 def index():
-    
+    # Part 8 replaces this with a database query.
     return render_template("index.html", name="Sadcattooo", tickets=TICKETS)
 
 
 @app.get("/queue/<int:ticket_id>")
 def ticket(ticket_id):
-    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
-    if t is None:
-        abort(404)
+    t = db.get_or_404(Ticket, ticket_id)
 
-    ahead = [x for x in TICKETS
-             if x["service_id"] == t["service_id"]
-             and x["status"] == "waiting"
-             and x["number"] < t["number"]]
+    ahead = db.session.scalar(
+        db.select(func.count()).select_from(Ticket)
+        .where(Ticket.service_id == t.service_id,
+               Ticket.status == "waiting",
+               Ticket.id < t.id))
 
-    service = next(s for s in SERVICES if s["service_id"] == t["service_id"])
+    now_serving = db.session.scalar(
+        db.select(Ticket)
+        .where(Ticket.service_id == t.service_id, Ticket.status == "called")
+        .order_by(Ticket.id.desc()))
 
-    # Most recent ticket currently called for this service (for "Now serving")
-    called = [x for x in TICKETS
-              if x["service_id"] == t["service_id"] and x["status"] == "called"]
-    now_serving = called[-1] if called else None
-
-    return render_template("ticket.html", ticket=t, service=service,
-                           ahead=len(ahead), now_serving=now_serving)
+    return render_template("ticket.html", ticket=t, service=t.service, ahead=ahead, now_serving=now_serving)
 
 
 @app.post("/queue/<int:ticket_id>/leave")
 def leave(ticket_id):
+    # Part 8 replaces this.
     t = next((t for t in TICKETS if t["number"] == ticket_id), None)
     if t is None:
         abort(404)
@@ -103,6 +83,7 @@ def leave(ticket_id):
 
 @app.get("/queue/<int:ticket_id>/status.json")
 def ticket_status(ticket_id):
+    # Part 8 replaces this.
     t = find_ticket(ticket_id)
     if t is None:
         abort(404)
@@ -123,44 +104,66 @@ def ticket_status(ticket_id):
     }
 
 
+def all_services():
+    return db.session.scalars(db.select(Service).order_by(Service.name)).all()
 
 
 @app.get("/join")
 def join_form():
-    return render_template("join.html", services=SERVICES, form={})
+    return render_template("join.html", services=all_services(), form={}, errors={})
 
 
 @app.post("/join")
 def join():
     form = request.form
     service_id = form.get("service_id", type=int)
+    service = db.session.get(Service, service_id) if service_id else None
+    # "Make it yours": your own column from Part 2b (tickets.priority_level).
+    priority_level = form.get("priority_level", "regular")
 
     errors = {}
-    if service_id not in [s["service_id"] for s in SERVICES]:
+    if service is None:
         errors["service_id"] = "Choose a service."
+    if priority_level not in ("regular", "pwd"):
+        errors["priority_level"] = "Choose regular or PWD."
 
     if errors:
         flash("Please fix the highlighted fields.", "danger")
-        return render_template("join.html", services=SERVICES, form=form, errors=errors), 400
+        return render_template("join.html", services=all_services(),
+                               form=form, errors=errors), 400
 
-    number = TICKETS[-1]["number"] + 1 if TICKETS else 1
-    TICKETS.append({"number": number, "service_id": service_id, "status": "waiting", "issued_at": datetime.now()})
-    flash(f"You joined the queue. Your ticket is #{number}. Category: {next((s['name'] for s in SERVICES if s['service_id'] == service_id), 'Unknown')}", "success")
-    return redirect(url_for("ticket", ticket_id=number))
-    
+    # users has no name or email in this system, only a role. tickets.user_id
+    # is NOT NULL, so every ticket needs a user row: make an anonymous customer.
+    customer = User(role="customer")
+    ticket = Ticket(user=customer, service=service, priority_level=priority_level)
+    db.session.add(ticket)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("Something went wrong saving your ticket. Please try again.", "danger")
+        return render_template("join.html", services=all_services(),
+                               form=form, errors={}), 409
+
+    flash(f"You joined the queue. Your ticket is #{ticket.id}.", "success")
+    return redirect(url_for("ticket", ticket_id=ticket.id))
+
 
 def find_ticket(ticket_id):
+    # Part 8/9 replaces this.
     return next((t for t in TICKETS if t["number"] == ticket_id), None)
 
 
 @app.template_global()
 def ticket_service(t):
-    return next(s for s in SERVICES if s["service_id"] == t["service_id"])
+    return t.service
 
 
 @app.template_global()
 def ticket_label(t):
-    return f'{ticket_service(t)["prefix"]}-{t["number"]}'
+    # services has no prefix column, so use the first letter of the name:
+    # Regular -> R-12, Priority -> P-13
+    return f"{t.service.name[:1].upper()}-{t.id}"
 
 
 def current_counter():
@@ -168,12 +171,13 @@ def current_counter():
 
 
 def back_to_dashboard():
-    
+
     return redirect(url_for("staff_dashboard",
                             service_id=request.form.get("service_id", type=int)))
 
 
 def call_ticket(t, counter):
+    # Part 9 replaces everything from here down to /hello.
     busy = next((x for x in TICKETS
                  if x["status"] == "called" and x.get("counter") == counter and x is not t), None)
     if busy:
@@ -193,7 +197,6 @@ def staff_dashboard():
     services = sorted(SERVICES, key=lambda s: s["rank"])
     rank = {s["service_id"]: s["rank"] for s in SERVICES}
 
-    
     active = [t for t in TICKETS if t["status"] in ("waiting", "called")]
     active.sort(key=lambda t: (rank[t["service_id"]], t["status"] != "called", t["number"]))
 
@@ -261,11 +264,9 @@ def staff_action(ticket_id, action):
     return back_to_dashboard()
 
 
-
-
 @app.route("/hello")
 def hello():
-    
+
     return "Hello, CCC181!"
 
 
