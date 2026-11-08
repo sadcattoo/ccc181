@@ -1,12 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Ticket {{ service.prefix }}-{{ ticket.id }} · YourApp{% endblock %}
+{% block title %}Ticket {{ ticket_label(ticket) }} · YourApp{% endblock %}
 
 {% block content %}
 {% set badge = {
   'waiting': 'text-bg-warning',
   'called': 'text-bg-primary',
   'served': 'text-bg-success',
-  'no-show': 'text-bg-secondary'
+  'completed': 'text-bg-success',
+  'skipped': 'text-bg-secondary',
+  'left': 'text-bg-secondary'
 } %}
 
 <div class="row justify-content-center">
@@ -16,9 +18,10 @@
       <div class="card-body">
         <h1 class="text-uppercase small fw-semibold">Your number</h1>
         <div class="display-1 fw-bold" style="font-size: clamp(3rem, 18vw, 6rem);">
-          {{ service.prefix }}-{{ ticket.id }}
+          {{ ticket_label(ticket) }}
         </div>
         <div class="fs-5 fw-semibold text-uppercase">{{ service.name }}</div>
+        <div class="small text-muted">Joined {{ ticket.created_at|local }}</div>
       </div>
     </div>
 
@@ -37,9 +40,8 @@
               {% elif ahead == 1 %}1 person ahead of you
               {% else %}{{ ahead }} people ahead of you{% endif %}
             {% elif ticket.status == 'called' %}
-              {% if ticket.counter %}It's your turn. Please go to Counter {{ ticket.counter }}.
-              {% else %}It's your turn. Please go to the counter.{% endif %}
-            {% elif ticket.status == 'served' %}
+              It's your turn. Please go to the counter.
+            {% elif ticket.status in ('served', 'completed') %}
               You've been served. Thank you!
             {% else %}
               You left the queue.
@@ -51,7 +53,7 @@
       <div class="card mb-3">
         <div id="now-serving" class="card-body text-center fw-semibold">
           {% if now_serving %}
-            NOW SERVING: {{ service.prefix }}-{{ now_serving.id }}
+            NOW SERVING: {{ ticket_label(now_serving) }}
           {% else %}
             Nobody is being served yet.
           {% endif %}
@@ -88,10 +90,12 @@
   const statusUrl = "{{ url_for('ticket_status', ticket_id=ticket.id) }}";
 
   const BADGES = {
-    "waiting": { cls: "text-bg-warning",   text: "Waiting" },
-    "called":  { cls: "text-bg-primary",   text: "Called" },
-    "served":  { cls: "text-bg-success",   text: "Served" },
-    "no-show": { cls: "text-bg-secondary", text: "No show" },
+    "waiting":   { cls: "text-bg-warning",   text: "Waiting" },
+    "called":    { cls: "text-bg-primary",   text: "Called" },
+    "served":    { cls: "text-bg-success",   text: "Served" },
+    "completed": { cls: "text-bg-success",   text: "Completed" },
+    "skipped":   { cls: "text-bg-secondary", text: "Skipped" },
+    "left":      { cls: "text-bg-secondary", text: "Left" },
   };
   const BADGE_CLASSES = Object.values(BADGES).map(b => b.cls);
 
@@ -102,10 +106,9 @@
         if (data.ahead === 1) return "1 person ahead of you";
         return `${data.ahead} people ahead of you`;
       case "called":
-        return data.counter
-          ? `It's your turn. Please go to Counter ${data.counter}.`
-          : "It's your turn. Please go to the counter.";
+        return "It's your turn. Please go to the counter.";
       case "served":
+      case "completed":
         return "You've been served. Thank you!";
       default:
         return "You left the queue.";
@@ -120,7 +123,7 @@
       const data = await res.json();
 
       const badge = document.getElementById("status-badge");
-      const info = BADGES[data.status] || BADGES["no-show"];
+      const info = BADGES[data.status] || BADGES["left"];
       badge.classList.remove(...BADGE_CLASSES);
       badge.classList.add(info.cls);
       badge.textContent = info.text;
@@ -134,7 +137,7 @@
           : "Nobody is being served yet.";
       }
 
-      if (data.status === "served" || data.status === "no-show") {
+      if (["served", "completed", "skipped", "left"].includes(data.status)) {
         const leave = document.getElementById("leave-wrap");
         if (leave) leave.hidden = true;
         clearInterval(timer);

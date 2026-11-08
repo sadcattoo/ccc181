@@ -5,7 +5,7 @@ Run it with:
 then open http://127.0.0.1:5000
 """
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
@@ -25,6 +25,22 @@ app.config["SQLALCHEMY_ECHO"] = os.environ.get("SQLALCHEMY_ECHO") == "1"
 db.init_app(app)
 migrate = Migrate(app, db)
 
+PH_TIME = timezone(timedelta(hours=8))  # Philippine time has no daylight saving
+
+
+@app.template_filter("local")
+def local_time(value):
+    """Show a database time in Philippine time, e.g. Oct 26, 08:01 AM."""
+    return value.astimezone(PH_TIME).strftime("%b %d, %I:%M %p") if value else ""
+
+
+@app.template_filter("minutes_since")
+def minutes_since(value):
+    """Whole minutes between a database time and now."""
+    if not value:
+        return 0
+    return int((datetime.now(timezone.utc) - value).total_seconds() // 60)
+
 
 @app.cli.command("seed")
 def seed():
@@ -38,70 +54,61 @@ def seed():
     print("Services are ready.")
 
 
-# SERVICES and TICKETS (the Week 3 lists) are gone. Every route that still
-# mentions them below is replaced in Parts 8 and 9.
-
 COUNTERS = [1, 2, 3]
 CLERK = "DocG"
 
 
 @app.route("/")
 def index():
-    # Part 8 replaces this with a database query.
-    return render_template("index.html", name="Sadcattooo", tickets=TICKETS)
+    tickets = db.session.scalars(
+        db.select(Ticket)
+        .where(Ticket.status.in_(["waiting", "called"]))
+        .order_by(Ticket.created_at)).all()
+    return render_template("index.html", name="Sadcattooo", tickets=tickets)
+
+
+def people_ahead(t):
+    """Count tickets still waiting for the same service that joined before t."""
+    stmt = (db.select(func.count())
+            .select_from(Ticket)
+            .where(Ticket.service_id == t.service_id,
+                   Ticket.status == "waiting",
+                   Ticket.created_at < t.created_at))
+    return db.session.scalar(stmt)
+
+
+def latest_called(t):
+    """The most recently called ticket for the same service as t (or None)."""
+    return db.session.scalar(
+        db.select(Ticket)
+        .where(Ticket.service_id == t.service_id, Ticket.status == "called")
+        .order_by(Ticket.id.desc())
+        .limit(1))
 
 
 @app.get("/queue/<int:ticket_id>")
 def ticket(ticket_id):
     t = db.get_or_404(Ticket, ticket_id)
-
-    ahead = db.session.scalar(
-        db.select(func.count()).select_from(Ticket)
-        .where(Ticket.service_id == t.service_id,
-               Ticket.status == "waiting",
-               Ticket.id < t.id))
-
-    now_serving = db.session.scalar(
-        db.select(Ticket)
-        .where(Ticket.service_id == t.service_id, Ticket.status == "called")
-        .order_by(Ticket.id.desc()))
-
-    return render_template("ticket.html", ticket=t, service=t.service, ahead=ahead, now_serving=now_serving)
+    return render_template("ticket.html", ticket=t, service=t.service,
+                           ahead=people_ahead(t), now_serving=latest_called(t))
 
 
 @app.post("/queue/<int:ticket_id>/leave")
 def leave(ticket_id):
-    # Part 8 replaces this.
-    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
-    if t is None:
-        abort(404)
-    if t["status"] in ("waiting", "called"):
-        t["status"] = "no-show"
+    t = db.get_or_404(Ticket, ticket_id)
+    if t.status in ("waiting", "called"):
+        t.status = "left"
+        db.session.commit()
         flash("You left the queue.", "success")
-    return redirect(url_for("index"))
+    return redirect(url_for("ticket", ticket_id=t.id))
 
 
 @app.get("/queue/<int:ticket_id>/status.json")
 def ticket_status(ticket_id):
-    # Part 8 replaces this.
-    t = find_ticket(ticket_id)
-    if t is None:
-        abort(404)
-
-    ahead = sum(1 for x in TICKETS
-                if x["service_id"] == t["service_id"]
-                and x["status"] == "waiting" and x["number"] < t["number"])
-
-    called = [x for x in TICKETS
-              if x["service_id"] == t["service_id"] and x["status"] == "called"]
-    now_serving = called[-1] if called else None
-
-    return {
-        "status": t["status"],
-        "ahead": ahead,
-        "counter": t.get("counter"),
-        "now_serving": ticket_label(now_serving) if now_serving else None,
-    }
+    t = db.get_or_404(Ticket, ticket_id)
+    serving = latest_called(t)
+    return {"status": t.status, "ahead": people_ahead(t),
+            "now_serving": ticket_label(serving) if serving else None}
 
 
 def all_services():
@@ -118,7 +125,6 @@ def join():
     form = request.form
     service_id = form.get("service_id", type=int)
     service = db.session.get(Service, service_id) if service_id else None
-    # "Make it yours": your own column from Part 2b (tickets.priority_level).
     priority_level = form.get("priority_level", "regular")
 
     errors = {}
@@ -132,8 +138,7 @@ def join():
         return render_template("join.html", services=all_services(),
                                form=form, errors=errors), 400
 
-    # users has no name or email in this system, only a role. tickets.user_id
-    # is NOT NULL, so every ticket needs a user row: make an anonymous customer.
+
     customer = User(role="customer")
     ticket = Ticket(user=customer, service=service, priority_level=priority_level)
     db.session.add(ticket)
@@ -150,8 +155,7 @@ def join():
 
 
 def find_ticket(ticket_id):
-    # Part 8/9 replaces this.
-    return next((t for t in TICKETS if t["number"] == ticket_id), None)
+    return db.session.get(Ticket, ticket_id)
 
 
 @app.template_global()
@@ -161,13 +165,30 @@ def ticket_service(t):
 
 @app.template_global()
 def ticket_label(t):
-    # services has no prefix column, so use the first letter of the name:
-    # Regular -> R-12, Priority -> P-13
+    
     return f"{t.service.name[:1].upper()}-{t.id}"
 
 
 def current_counter():
     return session.get("counter", COUNTERS[0])
+
+
+def serving_at(counter):
+    """The ticket currently called at this counter (counters live in the session,
+    because the tickets table has no counter column)."""
+    ticket_id = session.get("serving", {}).get(str(counter))
+    t = db.session.get(Ticket, ticket_id) if ticket_id else None
+    return t if t is not None and t.status == "called" else None
+
+
+def get_clerk():
+    """The clerk user who verifies tickets; created the first time it is needed."""
+    clerk = db.session.scalar(db.select(User).where(User.role == "clerk").limit(1))
+    if clerk is None:
+        clerk = User(role="clerk")
+        db.session.add(clerk)
+        db.session.flush()
+    return clerk
 
 
 def back_to_dashboard():
@@ -177,49 +198,57 @@ def back_to_dashboard():
 
 
 def call_ticket(t, counter):
-    # Part 9 replaces everything from here down to /hello.
-    busy = next((x for x in TICKETS
-                 if x["status"] == "called" and x.get("counter") == counter and x is not t), None)
-    if busy:
+    
+    busy = serving_at(counter)
+    if busy is not None and busy.id != t.id:
         flash(f"Counter {counter} is still serving {ticket_label(busy)}. "
               "Complete or skip it first.", "warning")
         return
-    t["status"] = "called"
-    t["counter"] = counter
-    t["called_at"] = datetime.now()
+    t.status = "called"
+    t.called_at = func.now()
+    db.session.commit()
+    session["serving"] = {**session.get("serving", {}), str(counter): t.id}
     flash(f"Calling {ticket_label(t)} to Counter {counter}.", "info")
 
 
 @app.get("/staff")
 def staff_dashboard():
     service_id = request.args.get("service_id", type=int)
+    stmt = (db.select(Ticket)
+            .where(Ticket.status.in_(["waiting", "called"]))
+            .order_by(Ticket.created_at))
+    if service_id:
+        stmt = stmt.where(Ticket.service_id == service_id)
+    queue = db.session.scalars(stmt).all()
+
+    services = all_services()
+    counts = {s.id: 0 for s in services}
+    waiting = {s.id: 0 for s in services}
+    rows = db.session.execute(
+        db.select(Ticket.service_id, Ticket.status, func.count())
+        .where(Ticket.status.in_(["waiting", "called"]))
+        .group_by(Ticket.service_id, Ticket.status)).all()
+    for sid, status, n in rows:
+        counts[sid] = counts.get(sid, 0) + n
+        if status == "waiting":
+            waiting[sid] = waiting.get(sid, 0) + n
+
+    today = datetime.now(PH_TIME).replace(hour=0, minute=0, second=0, microsecond=0)
+    served_count = db.session.scalar(
+        db.select(func.count()).select_from(Ticket)
+        .where(Ticket.status.in_(["served", "completed"]),
+               Ticket.created_at >= today))
+    avg_seconds = db.session.scalar(
+        db.select(func.avg(func.extract("epoch", Ticket.called_at - Ticket.created_at)))
+        .where(Ticket.called_at.is_not(None)))
+
     counter = current_counter()
-    services = sorted(SERVICES, key=lambda s: s["rank"])
-    rank = {s["service_id"]: s["rank"] for s in SERVICES}
-
-    active = [t for t in TICKETS if t["status"] in ("waiting", "called")]
-    active.sort(key=lambda t: (rank[t["service_id"]], t["status"] != "called", t["number"]))
-
-    counts = {s["service_id"]: sum(t["service_id"] == s["service_id"] for t in active) for s in SERVICES}
-    waiting = {s["service_id"]: sum(t["service_id"] == s["service_id"] and t["status"] == "waiting"
-                                    for t in active) for s in SERVICES}
-
-    queue = [t for t in active if t["service_id"] == service_id] if service_id else active
-    rows = [{**t, "waited": int((datetime.now() - t["issued_at"]).total_seconds() // 60)}
-            for t in queue]
-
-    now_serving = next((t for t in active
-                        if t["status"] == "called" and t.get("counter") == counter), None)
-
-    waits = [(t["called_at"] - t["issued_at"]).total_seconds() / 60
-             for t in TICKETS if t.get("called_at")]
-
     return render_template(
-        "staff.html", queue=rows, services=services, counts=counts, waiting=waiting,
-        total=len(active), selected=service_id, now_serving=now_serving,
-        counter=counter, counters=COUNTERS, clerk=CLERK,
-        served_count=sum(t["status"] == "served" for t in TICKETS),
-        avg_wait=round(sum(waits) / len(waits)) if waits else None)
+        "staff.html", queue=queue, services=services, selected=service_id,
+        counts=counts, waiting=waiting, total=sum(counts.values()),
+        now_serving=serving_at(counter), counter=counter, counters=COUNTERS,
+        clerk=CLERK, served_count=served_count,
+        avg_wait=round(avg_seconds / 60) if avg_seconds is not None else None)
 
 
 @app.post("/staff/counter")
@@ -232,35 +261,38 @@ def set_counter():
 
 @app.post("/staff/call-next/<int:service_id>")
 def call_next(service_id):
-    service = next((s for s in SERVICES if s["service_id"] == service_id), None)
-    if service is None:
-        abort(404)
-    waiting = sorted((t for t in TICKETS
-                      if t["service_id"] == service_id and t["status"] == "waiting"),
-                     key=lambda t: t["number"])
-    if waiting:
-        call_ticket(waiting[0], current_counter())
+    service = db.get_or_404(Service, service_id)
+    next_ticket = db.session.scalar(
+        db.select(Ticket)
+        .where(Ticket.service_id == service_id, Ticket.status == "waiting")
+        .order_by(Ticket.created_at, Ticket.id)
+        .limit(1))
+    if next_ticket is not None:
+        call_ticket(next_ticket, current_counter())
     else:
-        flash(f"No one is waiting for {service['name']}.", "warning")
+        flash(f"No one is waiting for {service.name}.", "warning")
     return back_to_dashboard()
 
 
 @app.post("/staff/tickets/<int:ticket_id>/<action>")
 def staff_action(ticket_id, action):
     t = find_ticket(ticket_id)
-    if t is None or action not in ("call", "serve", "no-show", "verify"):
+    if t is None or action not in ("call", "serve", "skipped", "verify"):
         abort(404)
 
     if action == "verify":
-        t["verified"] = True
+        t.verified_by = get_clerk().id
+        t.verified_at = func.now()
+        db.session.commit()
         flash(f"{ticket_label(t)} verified.", "success")
-    elif t["status"] not in ("waiting", "called"):
-        flash(f"{ticket_label(t)} is already {t['status']}.", "warning")
+    elif t.status not in ("waiting", "called"):
+        flash(f"{ticket_label(t)} is already {t.status}.", "warning")
     elif action == "call":
         call_ticket(t, current_counter())
     else:
-        t["status"] = "served" if action == "serve" else "no-show"
-        flash(f"{ticket_label(t)} marked {t['status']}.", "info")
+        t.status = "served" if action == "serve" else "skipped"
+        db.session.commit()
+        flash(f"{ticket_label(t)} marked {t.status}.", "info")
     return back_to_dashboard()
 
 

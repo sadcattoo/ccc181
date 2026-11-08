@@ -4,7 +4,7 @@
 {% block content %}
 {# One small POST form per action; carries the current filter along. #}
 {% macro act(t, action, text, cls, aria=None) %}
-<form method="post" action="{{ url_for('staff_action', ticket_id=t.number, action=action) }}" class="d-grid">
+<form method="post" action="{{ url_for('staff_action', ticket_id=t.id, action=action) }}" class="d-grid">
   {% if selected %}<input type="hidden" name="service_id" value="{{ selected }}">{% endif %}
   <button type="submit" class="btn {{ cls }}"
           aria-label="{{ aria or (text ~ ' ticket ' ~ ticket_label(t)) }}">{{ text }}</button>
@@ -66,14 +66,14 @@
   {# ── Call next (priority first, bigger) ── #}
   <section class="dash-call" aria-label="Call next ticket">
     <div class="d-grid gap-2">
-      {% for s in services %}
-        <form method="post" action="{{ url_for('call_next', service_id=s.service_id) }}" class="d-grid">
+      {% for s in services|sort(attribute='name', reverse=true) %}
+        <form method="post" action="{{ url_for('call_next', service_id=s.id) }}" class="d-grid">
           {% if selected %}<input type="hidden" name="service_id" value="{{ selected }}">{% endif %}
           <button type="submit"
-                  class="btn {% if s.rank == 0 %}btn-outline-dark border-3 btn-lg py-3 py-lg-4 fw-bold{% else %}btn-outline-dark py-2 fw-semibold{% endif %}"
-                  {% if not waiting[s.service_id] %}disabled{% endif %}>
+                  class="btn {% if s.name == 'Priority' %}btn-outline-dark border-3 btn-lg py-3 py-lg-4 fw-bold{% else %}btn-outline-dark py-2 fw-semibold{% endif %}"
+                  {% if not waiting[s.id] %}disabled{% endif %}>
             Call next {{ s.name|lower }}
-            <span class="d-block small fw-normal">{{ waiting[s.service_id] }} waiting</span>
+            <span class="d-block small fw-normal">{{ waiting[s.id] }} waiting</span>
           </button>
         </form>
       {% endfor %}
@@ -96,15 +96,16 @@
 
         <div class="border border-dark-subtle rounded p-2 mb-3" style="border-style: dashed !important;">
           <div class="small fw-semibold text-uppercase mb-1">
-            Customer details{% if svc.rank == 0 %} (verify priority){% endif %}
+            Customer details{% if now_serving.priority_level == 'pwd' %} (verify priority){% endif %}
           </div>
           <div class="small mb-2">
             Ticket {{ ticket_label(now_serving) }} · Category: {{ svc.name|upper }} ·
-            Issued {{ now_serving.issued_at.strftime('%H:%M') }} ·
-            Called {{ now_serving.called_at.strftime('%H:%M') }} · Counter {{ now_serving.counter }}
+            Priority: {{ now_serving.priority_level|upper }} ·
+            Joined {{ now_serving.created_at|local }} ·
+            Called {{ now_serving.called_at|local }} · Counter {{ counter }}
           </div>
-          {% if svc.rank == 0 %}
-            {% if now_serving.verified %}
+          {% if now_serving.priority_level == 'pwd' %}
+            {% if now_serving.verified_at %}
               <span class="badge text-bg-success">Verified ✓</span>
             {% else %}
               {{ act(now_serving, 'verify', 'Mark verified ✓', 'btn-sm btn-outline-dark',
@@ -146,9 +147,9 @@
         </li>
         {% for s in services %}
           <li class="nav-item">
-            <a class="nav-link border {% if selected == s.service_id %}active{% endif %}"
-               href="{{ url_for('staff_dashboard', service_id=s.service_id) }}">
-              {{ s.name }} ({{ counts[s.service_id] }})
+            <a class="nav-link border {% if selected == s.id %}active{% endif %}"
+               href="{{ url_for('staff_dashboard', service_id=s.id) }}">
+              {{ s.name }} ({{ counts[s.id] }})
             </a>
           </li>
         {% endfor %}
@@ -157,11 +158,13 @@
       {% if queue %}
         <div class="table-responsive">
           <table class="table align-middle text-nowrap mb-0">
-            <caption class="caption-top">Tickets waiting or being served, priority first</caption>
+            <caption class="caption-top">Tickets waiting or being served, in the order they joined</caption>
             <thead>
               <tr>
                 <th scope="col">Ticket</th>
                 <th scope="col" class="d-none d-sm-table-cell">Type</th>
+                <th scope="col" class="d-none d-sm-table-cell">Priority</th>
+                <th scope="col">Joined</th>
                 <th scope="col">Waited</th>
                 <th scope="col" class="d-none d-sm-table-cell">Status</th>
                 <th scope="col" class="text-end">Actions</th>
@@ -174,17 +177,19 @@
                     {{ ticket_label(t) }}
                     <div class="d-sm-none">
                       {% if t.status == 'called' %}
-                        <span class="badge text-bg-primary">Called · Ctr {{ t.counter }}</span>
+                        <span class="badge text-bg-primary">Called</span>
                       {% else %}
                         <span class="badge text-bg-warning">Waiting</span>
                       {% endif %}
                     </div>
                   </th>
-                  <td class="d-none d-sm-table-cell">{{ ticket_service(t).name }}</td>
-                  <td>{{ t.waited }} min</td>
+                  <td class="d-none d-sm-table-cell">{{ t.service.name }}</td>
+                  <td class="d-none d-sm-table-cell">{{ t.priority_level|upper }}</td>
+                  <td>{{ t.created_at|local }}</td>
+                  <td>{{ t.created_at|minutes_since }} min</td>
                   <td class="d-none d-sm-table-cell">
                     {% if t.status == 'called' %}
-                      <span class="badge text-bg-primary">Called · Ctr {{ t.counter }}</span>
+                      <span class="badge text-bg-primary">Called</span>
                     {% else %}
                       <span class="badge text-bg-warning">Waiting</span>
                     {% endif %}
@@ -215,7 +220,7 @@
 
       <div class="small text-center border rounded p-2 mt-3" style="border-style: dashed !important;">
         Totals:
-        {% for s in services %}{{ s.name }} waiting {{ waiting[s.service_id] }}{% if not loop.last %} · {% endif %}{% endfor %}
+        {% for s in services %}{{ s.name }} waiting {{ waiting[s.id] }}{% if not loop.last %} · {% endif %}{% endfor %}
         <br>
         Served today {{ served_count }} · Avg wait {% if avg_wait is not none %}{{ avg_wait }} min{% else %}—{% endif %}
       </div>
